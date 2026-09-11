@@ -22,14 +22,14 @@ export function Ground() {
         followCamera={false}
       />
 
-      {/* Invisible horizontal plane for future raycasting / drop targeting */}
+      {/* Invisible raycast target + soft shadow catcher at Y = 0 */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, 0, 0]}
-        visible={false}
+        receiveShadow
       >
         <planeGeometry args={[200, 200]} />
-        <meshBasicMaterial />
+        <shadowMaterial opacity={0.35} />
       </mesh>
     </group>
   );
