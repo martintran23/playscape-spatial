@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { CatalogAsset, SceneItem } from '../types/scene';
+import type { CatalogAsset, SceneItem, Vector3Tuple } from '../types/scene';
 
 /** Verified AABB from Milestone 2 for the Superior rectangle shade. */
 const SHADE_RECTANGLE: CatalogAsset = {
@@ -14,24 +14,37 @@ const SHADE_RECTANGLE: CatalogAsset = {
   },
 };
 
+export type TransformMode = 'translate' | 'rotate';
+
 interface SceneStore {
   catalog: CatalogAsset[];
   items: SceneItem[];
   selectedId: string | null;
+  transformMode: TransformMode;
+  /** True while TransformControls is actively dragging (pauses store→object pose sync). */
+  isDragging: boolean;
   addItem: (assetId: string) => void;
   removeItem: (instanceId: string) => void;
   clearScene: () => void;
   selectItem: (instanceId: string | null) => void;
+  setTransformMode: (mode: TransformMode) => void;
+  setDragging: (dragging: boolean) => void;
+  updateItemTransform: (
+    instanceId: string,
+    position: Partial<Vector3Tuple>,
+    rotation?: Partial<Vector3Tuple>,
+  ) => void;
 }
 
 /**
- * Central scene graph state: catalog definitions + placed instances + selection.
- * Spawn positions stagger along +X so new instances do not stack.
+ * Central scene graph state: catalog, instances, selection, and transform tooling.
  */
 export const useSceneStore = create<SceneStore>((set, get) => ({
   catalog: [SHADE_RECTANGLE],
   items: [],
   selectedId: null,
+  transformMode: 'translate',
+  isDragging: false,
 
   addItem: (assetId) => {
     const asset = get().catalog.find((entry) => entry.id === assetId);
@@ -59,14 +72,47 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
     set({
       items: items.filter((item) => item.instanceId !== instanceId),
       selectedId: selectedId === instanceId ? null : selectedId,
+      isDragging: false,
     });
   },
 
   clearScene: () => {
-    set({ items: [], selectedId: null });
+    set({ items: [], selectedId: null, isDragging: false });
   },
 
   selectItem: (instanceId) => {
-    set({ selectedId: instanceId });
+    set({ selectedId: instanceId, isDragging: false });
+  },
+
+  setTransformMode: (mode) => {
+    set({ transformMode: mode });
+  },
+
+  setDragging: (dragging) => {
+    set({ isDragging: dragging });
+  },
+
+  updateItemTransform: (instanceId, position, rotation) => {
+    set({
+      items: get().items.map((item) => {
+        if (item.instanceId !== instanceId) return item;
+
+        return {
+          ...item,
+          position: {
+            x: position.x ?? item.position.x,
+            // Always keep instances flush on the ground plane.
+            y: 0,
+            z: position.z ?? item.position.z,
+          },
+          rotation: {
+            // Only yaw is editable — keep structures upright.
+            x: 0,
+            y: rotation?.y ?? item.rotation.y,
+            z: 0,
+          },
+        };
+      }),
+    });
   },
 }));

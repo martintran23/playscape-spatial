@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import { useSceneStore } from '../../store/useSceneStore';
 import { Ground } from './Ground';
+import { Manipulator } from './Manipulator';
 import { PlacedObject } from './PlacedObject';
 
 /**
@@ -28,6 +29,7 @@ export function Scene() {
 
       <PerspectiveCamera makeDefault position={[0, 8, 16]} fov={45} />
 
+      {/* makeDefault exposes this instance to useThree().controls for Manipulator */}
       <OrbitControls
         makeDefault
         enableDamping
@@ -60,6 +62,9 @@ export function Scene() {
           <PlacedObject key={item.instanceId} item={item} />
         ))}
       </Suspense>
+
+      {/* Gizmo attaches to the selected instance after objects are mounted */}
+      <Manipulator />
     </Canvas>
   );
 }

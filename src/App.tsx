@@ -5,21 +5,33 @@ function abbreviateId(id: string): string {
   return id.length <= 12 ? id : `${id.slice(0, 8)}…`;
 }
 
+function radiansToDegrees(radians: number): number {
+  return (radians * 180) / Math.PI;
+}
+
+function degreesToRadians(degrees: number): number {
+  return (degrees * Math.PI) / 180;
+}
+
 /**
  * Application shell: full-screen 3D viewport + catalog / properties HUD.
- * Properties panel stays in sync with 3D selection state.
+ * Properties panel stays in sync with 3D selection and transform state.
  */
 function App() {
   const catalog = useSceneStore((state) => state.catalog);
   const items = useSceneStore((state) => state.items);
   const selectedId = useSceneStore((state) => state.selectedId);
+  const transformMode = useSceneStore((state) => state.transformMode);
   const addItem = useSceneStore((state) => state.addItem);
   const clearScene = useSceneStore((state) => state.clearScene);
   const selectItem = useSceneStore((state) => state.selectItem);
+  const setTransformMode = useSceneStore((state) => state.setTransformMode);
+  const updateItemTransform = useSceneStore((state) => state.updateItemTransform);
 
-  const selectedItem = items.find((item) => item.instanceId === selectedId) ?? null;
+  const selectedItem =
+    items.find((item) => item.instanceId === selectedId) ?? null;
   const selectedAsset = selectedItem
-    ? catalog.find((asset) => asset.id === selectedItem.assetId) ?? null
+    ? (catalog.find((asset) => asset.id === selectedItem.assetId) ?? null)
     : null;
 
   return (
@@ -73,7 +85,7 @@ function App() {
             </ul>
           </aside>
 
-          {/* Right: selection-aware properties */}
+          {/* Right: selection-aware properties + transform editors */}
           <aside className="pointer-events-auto flex w-72 flex-col gap-3 overflow-y-auto border border-slate-700/70 bg-slate-800/80 p-3 backdrop-blur-sm">
             <h2 className="text-xs font-medium uppercase tracking-wider text-slate-300">
               Properties
@@ -110,14 +122,6 @@ function App() {
                     <dd className="text-slate-100">{selectedItem.name}</dd>
                   </div>
                   <div>
-                    <dt className="text-slate-500">Position (X, Y, Z)</dt>
-                    <dd className="font-mono text-slate-100">
-                      {selectedItem.position.x.toFixed(2)},{' '}
-                      {selectedItem.position.y.toFixed(2)},{' '}
-                      {selectedItem.position.z.toFixed(2)} m
-                    </dd>
-                  </div>
-                  <div>
                     <dt className="text-slate-500">Dimensions (W × H × D)</dt>
                     <dd className="font-mono text-slate-100">
                       {selectedAsset.defaultDimensions.width.toFixed(2)} ×{' '}
@@ -126,6 +130,102 @@ function App() {
                     </dd>
                   </div>
                 </dl>
+
+                {/* Transform mode toggle */}
+                <div className="mt-3">
+                  <p className="mb-1 text-[10px] uppercase tracking-wider text-slate-500">
+                    Transform Mode
+                  </p>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setTransformMode('translate')}
+                      className={`flex-1 px-2 py-1.5 text-xs ${
+                        transformMode === 'translate'
+                          ? 'border border-sky-400 bg-sky-900/70 text-sky-100'
+                          : 'border border-slate-600 bg-slate-700/80 text-slate-200 hover:bg-slate-600'
+                      }`}
+                    >
+                      Move
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTransformMode('rotate')}
+                      className={`flex-1 px-2 py-1.5 text-xs ${
+                        transformMode === 'rotate'
+                          ? 'border border-sky-400 bg-sky-900/70 text-sky-100'
+                          : 'border border-slate-600 bg-slate-700/80 text-slate-200 hover:bg-slate-600'
+                      }`}
+                    >
+                      Rotate (Y)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Precise numeric editors */}
+                <div className="mt-3 space-y-2">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-500">
+                    Pose
+                  </p>
+                  <label className="flex items-center justify-between gap-2">
+                    <span className="text-slate-400">Pos X (m)</span>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={Number(selectedItem.position.x.toFixed(3))}
+                      onChange={(event) => {
+                        const x = Number.parseFloat(event.target.value);
+                        if (!Number.isFinite(x)) return;
+                        updateItemTransform(selectedItem.instanceId, { x });
+                      }}
+                      className="w-24 border border-slate-600 bg-slate-900 px-1.5 py-1 font-mono text-[11px] text-slate-100"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between gap-2">
+                    <span className="text-slate-400">Pos Y (m)</span>
+                    <input
+                      type="number"
+                      value={0}
+                      disabled
+                      className="w-24 cursor-not-allowed border border-slate-700 bg-slate-950 px-1.5 py-1 font-mono text-[11px] text-slate-500"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between gap-2">
+                    <span className="text-slate-400">Pos Z (m)</span>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={Number(selectedItem.position.z.toFixed(3))}
+                      onChange={(event) => {
+                        const z = Number.parseFloat(event.target.value);
+                        if (!Number.isFinite(z)) return;
+                        updateItemTransform(selectedItem.instanceId, { z });
+                      }}
+                      className="w-24 border border-slate-600 bg-slate-900 px-1.5 py-1 font-mono text-[11px] text-slate-100"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between gap-2">
+                    <span className="text-slate-400">Rot Y (°)</span>
+                    <input
+                      type="number"
+                      step="1"
+                      value={Number(
+                        radiansToDegrees(selectedItem.rotation.y).toFixed(1),
+                      )}
+                      onChange={(event) => {
+                        const degrees = Number.parseFloat(event.target.value);
+                        if (!Number.isFinite(degrees)) return;
+                        updateItemTransform(
+                          selectedItem.instanceId,
+                          {},
+                          { y: degreesToRadians(degrees) },
+                        );
+                      }}
+                      className="w-24 border border-slate-600 bg-slate-900 px-1.5 py-1 font-mono text-[11px] text-slate-100"
+                    />
+                  </label>
+                </div>
+
                 <button
                   type="button"
                   onClick={() => selectItem(null)}

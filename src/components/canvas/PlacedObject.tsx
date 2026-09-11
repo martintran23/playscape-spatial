@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import type { ThreeEvent } from '@react-three/fiber';
 import type { SceneItem } from '../../types/scene';
 import { useSceneStore } from '../../store/useSceneStore';
+import { registerPlacedObject } from '../../utils/placedObjectRefs';
 
 export interface PlacedObjectProps {
   item: SceneItem;
@@ -26,11 +27,29 @@ export function PlacedObject({ item }: PlacedObjectProps) {
   const [localBounds, setLocalBounds] = useState<LocalBounds | null>(null);
 
   const selectedId = useSceneStore((state) => state.selectedId);
+  const isDragging = useSceneStore((state) => state.isDragging);
   const selectItem = useSceneStore((state) => state.selectItem);
   const isSelected = selectedId === item.instanceId;
 
   // Clone so concurrent instances never share the same Object3D graph.
   const model = useMemo(() => scene.clone(true), [scene]);
+
+  // Register the outer group so Manipulator can attach TransformControls.
+  useLayoutEffect(() => {
+    registerPlacedObject(item.instanceId, outerRef.current);
+    return () => registerPlacedObject(item.instanceId, null);
+  }, [item.instanceId]);
+
+  // Sync pose from the store unless this instance is mid-gizmo-drag.
+  useLayoutEffect(() => {
+    const outer = outerRef.current;
+    if (!outer) return;
+    if (isSelected && isDragging) return;
+
+    outer.position.set(item.position.x, item.position.y, item.position.z);
+    outer.rotation.set(item.rotation.x, item.rotation.y, item.rotation.z);
+    outer.scale.set(item.scale.x, item.scale.y, item.scale.z);
+  }, [item, isSelected, isDragging]);
 
   useLayoutEffect(() => {
     model.traverse((child) => {
@@ -83,9 +102,6 @@ export function PlacedObject({ item }: PlacedObjectProps) {
   return (
     <group
       ref={outerRef}
-      position={[item.position.x, item.position.y, item.position.z]}
-      rotation={[item.rotation.x, item.rotation.y, item.rotation.z]}
-      scale={[item.scale.x, item.scale.y, item.scale.z]}
       onClick={handleClick}
       onPointerOver={handlePointerOver}
       onPointerOut={handlePointerOut}
