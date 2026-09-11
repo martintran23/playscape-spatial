@@ -1,19 +1,18 @@
 import { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
-import type { ModelDimensions } from '../../utils/bounds';
+import { useSceneStore } from '../../store/useSceneStore';
 import { Ground } from './Ground';
 import { PlacedObject } from './PlacedObject';
-
-export interface SceneProps {
-  onModelDimensions?: (dimensions: ModelDimensions) => void;
-}
 
 /**
  * Root WebGL viewport for the playground staging sandbox.
  * Fills its parent; coordinate system is metric (1 unit = 1 m, +Y up).
+ * Placed instances are driven by the Zustand scene store.
  */
-export function Scene({ onModelDimensions }: SceneProps) {
+export function Scene() {
+  const items = useSceneStore((state) => state.items);
+
   return (
     <Canvas
       shadows
@@ -24,7 +23,7 @@ export function Scene({ onModelDimensions }: SceneProps) {
       {/* Dark slate clear color matches the HTML shell */}
       <color attach="background" args={['#0f172a']} />
 
-      <PerspectiveCamera makeDefault position={[0, 6, 10]} fov={45} />
+      <PerspectiveCamera makeDefault position={[0, 8, 16]} fov={45} />
 
       <OrbitControls
         makeDefault
@@ -33,7 +32,7 @@ export function Scene({ onModelDimensions }: SceneProps) {
         // Keep the camera above the ground plane
         maxPolarAngle={Math.PI / 2 - 0.05}
         minDistance={2}
-        maxDistance={50}
+        maxDistance={80}
       />
 
       <ambientLight intensity={0.6} />
@@ -43,18 +42,20 @@ export function Scene({ onModelDimensions }: SceneProps) {
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-camera-near={0.5}
-        shadow-camera-far={60}
-        shadow-camera-left={-15}
-        shadow-camera-right={15}
-        shadow-camera-top={15}
-        shadow-camera-bottom={-15}
+        shadow-camera-far={80}
+        shadow-camera-left={-30}
+        shadow-camera-right={30}
+        shadow-camera-top={30}
+        shadow-camera-bottom={-30}
       />
 
       <Ground />
 
-      {/* Suspense keeps the WebGL context alive while the GLB streams in */}
+      {/* Suspense keeps the WebGL context alive while GLBs stream in */}
       <Suspense fallback={null}>
-        <PlacedObject onDimensions={onModelDimensions} />
+        {items.map((item) => (
+          <PlacedObject key={item.instanceId} item={item} />
+        ))}
       </Suspense>
     </Canvas>
   );

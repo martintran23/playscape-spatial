@@ -1,19 +1,21 @@
-import { useState } from 'react';
 import { Scene } from './components/canvas/Scene';
-import type { ModelDimensions } from './utils/bounds';
+import { useSceneStore } from './store/useSceneStore';
 
 /**
- * Application shell: full-screen 3D viewport + lightweight HTML HUD overlays.
- * Properties panel shows live metric bounds for the Milestone 2 shade asset.
+ * Application shell: full-screen 3D viewport + catalog / properties HUD.
+ * Catalog buttons spawn SceneItems into the Zustand store.
  */
 function App() {
-  const [dimensions, setDimensions] = useState<ModelDimensions | null>(null);
+  const catalog = useSceneStore((state) => state.catalog);
+  const items = useSceneStore((state) => state.items);
+  const addItem = useSceneStore((state) => state.addItem);
+  const clearScene = useSceneStore((state) => state.clearScene);
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-slate-900">
       {/* Full-screen R3F canvas */}
       <div className="absolute inset-0">
-        <Scene onModelDimensions={setDimensions} />
+        <Scene />
       </div>
 
       {/* HTML HUD — pointer-events-none so orbit controls work through empty space */}
@@ -26,56 +28,82 @@ function App() {
         </header>
 
         <div className="flex min-h-0 flex-1 justify-between px-3 pb-3">
-          {/* Left: future asset catalog */}
-          <aside className="pointer-events-auto w-56 border border-slate-700/70 bg-slate-800/80 p-3 backdrop-blur-sm">
+          {/* Left: asset catalog */}
+          <aside className="pointer-events-auto flex w-64 flex-col gap-3 overflow-y-auto border border-slate-700/70 bg-slate-800/80 p-3 backdrop-blur-sm">
             <h2 className="text-xs font-medium uppercase tracking-wider text-slate-300">
-              Asset Catalog (Milestone 3)
+              Asset Catalog
             </h2>
+            <ul className="flex flex-col gap-2">
+              {catalog.map((asset) => (
+                <li
+                  key={asset.id}
+                  className="border border-slate-700/60 bg-slate-900/50 p-2"
+                >
+                  <p className="text-xs font-medium text-slate-100">
+                    {asset.name}
+                  </p>
+                  <p className="mt-0.5 text-[10px] uppercase tracking-wide text-slate-500">
+                    {asset.category.replace('_', ' ')}
+                  </p>
+                  <p className="mt-1 font-mono text-[10px] text-slate-400">
+                    {asset.defaultDimensions.width.toFixed(2)} ×{' '}
+                    {asset.defaultDimensions.height.toFixed(2)} ×{' '}
+                    {asset.defaultDimensions.depth.toFixed(2)} m
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => addItem(asset.id)}
+                    className="mt-2 w-full border border-slate-600 bg-slate-700/80 px-2 py-1.5 text-xs text-slate-100 hover:bg-slate-600"
+                  >
+                    + Add to Scene
+                  </button>
+                </li>
+              ))}
+            </ul>
           </aside>
 
-          {/* Right: live model properties for the placed shade structure */}
-          <aside className="pointer-events-auto w-64 border border-slate-700/70 bg-slate-800/80 p-3 backdrop-blur-sm">
-            <h2 className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-300">
+          {/* Right: scene instance summary */}
+          <aside className="pointer-events-auto flex w-72 flex-col gap-3 overflow-y-auto border border-slate-700/70 bg-slate-800/80 p-3 backdrop-blur-sm">
+            <h2 className="text-xs font-medium uppercase tracking-wider text-slate-300">
               Properties
             </h2>
-            <dl className="space-y-2 text-xs text-slate-200">
-              <div>
-                <dt className="text-slate-500">Model Name</dt>
-                <dd className="text-slate-100">
-                  Superior 20&apos;x26&apos; Rectangle Shade
-                </dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">Asset Path</dt>
-                <dd className="break-all font-mono text-[10px] text-slate-300">
-                  /assets/models/shade_rectangle_20x26.glb
-                </dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">Width (X)</dt>
-                <dd>
-                  {dimensions
-                    ? `${dimensions.width.toFixed(2)} m`
-                    : 'Loading…'}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">Height (Y)</dt>
-                <dd>
-                  {dimensions
-                    ? `${dimensions.height.toFixed(2)} m`
-                    : 'Loading…'}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">Depth (Z)</dt>
-                <dd>
-                  {dimensions
-                    ? `${dimensions.depth.toFixed(2)} m`
-                    : 'Loading…'}
-                </dd>
-              </div>
-            </dl>
+
+            <p className="text-xs text-slate-200">
+              Total Items in Scene:{' '}
+              <span className="font-semibold text-slate-50">{items.length}</span>
+            </p>
+
+            <button
+              type="button"
+              onClick={clearScene}
+              disabled={items.length === 0}
+              className="border border-slate-600 bg-slate-700/80 px-2 py-1.5 text-xs text-slate-100 hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Clear Scene
+            </button>
+
+            <ul className="flex flex-col gap-2">
+              {items.length === 0 ? (
+                <li className="text-xs text-slate-500">No items placed.</li>
+              ) : (
+                items.map((item) => (
+                  <li
+                    key={item.instanceId}
+                    className="border border-slate-700/60 bg-slate-900/50 p-2 text-[10px] text-slate-300"
+                  >
+                    <p className="font-medium text-slate-100">{item.name}</p>
+                    <p className="mt-0.5 break-all font-mono text-slate-500">
+                      {item.instanceId}
+                    </p>
+                    <p className="mt-1 font-mono text-slate-400">
+                      pos ({item.position.x.toFixed(2)},{' '}
+                      {item.position.y.toFixed(2)},{' '}
+                      {item.position.z.toFixed(2)})
+                    </p>
+                  </li>
+                ))
+              )}
+            </ul>
           </aside>
         </div>
       </div>
