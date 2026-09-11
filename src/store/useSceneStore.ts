@@ -17,18 +17,21 @@ const SHADE_RECTANGLE: CatalogAsset = {
 interface SceneStore {
   catalog: CatalogAsset[];
   items: SceneItem[];
+  selectedId: string | null;
   addItem: (assetId: string) => void;
   removeItem: (instanceId: string) => void;
   clearScene: () => void;
+  selectItem: (instanceId: string | null) => void;
 }
 
 /**
- * Central scene graph state: catalog definitions + placed instances.
+ * Central scene graph state: catalog definitions + placed instances + selection.
  * Spawn positions stagger along +X so new instances do not stack.
  */
 export const useSceneStore = create<SceneStore>((set, get) => ({
   catalog: [SHADE_RECTANGLE],
   items: [],
+  selectedId: null,
 
   addItem: (assetId) => {
     const asset = get().catalog.find((entry) => entry.id === assetId);
@@ -52,10 +55,18 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
   },
 
   removeItem: (instanceId) => {
-    set({ items: get().items.filter((item) => item.instanceId !== instanceId) });
+    const { items, selectedId } = get();
+    set({
+      items: items.filter((item) => item.instanceId !== instanceId),
+      selectedId: selectedId === instanceId ? null : selectedId,
+    });
   },
 
   clearScene: () => {
-    set({ items: [] });
+    set({ items: [], selectedId: null });
+  },
+
+  selectItem: (instanceId) => {
+    set({ selectedId: instanceId });
   },
 }));

@@ -12,6 +12,7 @@ import { PlacedObject } from './PlacedObject';
  */
 export function Scene() {
   const items = useSceneStore((state) => state.items);
+  const selectItem = useSceneStore((state) => state.selectItem);
 
   return (
     <Canvas
@@ -19,6 +20,8 @@ export function Scene() {
       className="h-full w-full"
       style={{ width: '100%', height: '100%' }}
       gl={{ antialias: true }}
+      // Clicks that miss all meshes (e.g. sky) clear selection.
+      onPointerMissed={() => selectItem(null)}
     >
       {/* Dark slate clear color matches the HTML shell */}
       <color attach="background" args={['#0f172a']} />
