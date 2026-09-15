@@ -1,5 +1,12 @@
 import { create } from 'zustand';
-import type { CatalogAsset, SceneItem, Vector3Tuple } from '../types/scene';
+import type {
+  CatalogAsset,
+  PlaygroundSceneSchema,
+  SceneItem,
+  UnitSystem,
+  Vector3Tuple,
+} from '../types/scene';
+import { isPlaygroundSceneSchema } from '../types/scene';
 
 /** Verified AABB from Milestone 2 for the Superior rectangle shade. */
 const SHADE_RECTANGLE: CatalogAsset = {
@@ -21,30 +28,46 @@ interface SceneStore {
   items: SceneItem[];
   selectedId: string | null;
   transformMode: TransformMode;
+  /** Display preference only — store coordinates stay metric meters. */
+  unitSystem: UnitSystem;
   /** True while TransformControls is actively dragging (pauses store→object pose sync). */
   isDragging: boolean;
+  /** Display name written into exported layout metadata. */
+  projectName: string;
+  /** ISO timestamp of first session / last successful import. */
+  projectCreatedAt: string;
   addItem: (assetId: string) => void;
   removeItem: (instanceId: string) => void;
   clearScene: () => void;
   selectItem: (instanceId: string | null) => void;
   setTransformMode: (mode: TransformMode) => void;
   setDragging: (dragging: boolean) => void;
+  setUnitSystem: (unit: UnitSystem) => void;
+  toggleUnitSystem: () => void;
+  deleteSelectedItem: () => void;
   updateItemTransform: (
     instanceId: string,
     position: Partial<Vector3Tuple>,
     rotation?: Partial<Vector3Tuple>,
   ) => void;
+  exportSceneJSON: () => PlaygroundSceneSchema;
+  importSceneJSON: (schema: PlaygroundSceneSchema) => boolean;
 }
 
 /**
  * Central scene graph state: catalog, instances, selection, and transform tooling.
+ * All spatial values remain metric (1 unit = 1 meter).
  */
 export const useSceneStore = create<SceneStore>((set, get) => ({
   catalog: [SHADE_RECTANGLE],
   items: [],
   selectedId: null,
   transformMode: 'translate',
+  // Default imperial for US commercial playground sales workflows.
+  unitSystem: 'imperial',
   isDragging: false,
+  projectName: 'Untitled Layout',
+  projectCreatedAt: new Date().toISOString(),
 
   addItem: (assetId) => {
     const asset = get().catalog.find((entry) => entry.id === assetId);
@@ -92,6 +115,22 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
     set({ isDragging: dragging });
   },
 
+  setUnitSystem: (unit) => {
+    set({ unitSystem: unit });
+  },
+
+  toggleUnitSystem: () => {
+    set({
+      unitSystem: get().unitSystem === 'imperial' ? 'metric' : 'imperial',
+    });
+  },
+
+  deleteSelectedItem: () => {
+    const { selectedId, removeItem } = get();
+    if (selectedId === null) return;
+    removeItem(selectedId);
+  },
+
   updateItemTransform: (instanceId, position, rotation) => {
     set({
       items: get().items.map((item) => {
@@ -114,5 +153,42 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
         };
       }),
     });
+  },
+
+  exportSceneJSON: () => {
+    const state = get();
+    const now = new Date().toISOString();
+
+    const schema: PlaygroundSceneSchema = {
+      version: '1.0.0',
+      metadata: {
+        projectName: state.projectName,
+        createdAt: state.projectCreatedAt,
+        lastModified: now,
+        defaultUnits: state.unitSystem,
+      },
+      environment: {
+        type: 'default_grid',
+      },
+      // Deep-clone so callers cannot mutate live store items by reference.
+      items: structuredClone(state.items),
+    };
+
+    return schema;
+  },
+
+  importSceneJSON: (schema) => {
+    if (!isPlaygroundSceneSchema(schema)) return false;
+
+    set({
+      items: structuredClone(schema.items),
+      selectedId: null,
+      isDragging: false,
+      unitSystem: schema.metadata.defaultUnits,
+      projectName: schema.metadata.projectName,
+      projectCreatedAt: schema.metadata.createdAt,
+    });
+
+    return true;
   },
 }));
