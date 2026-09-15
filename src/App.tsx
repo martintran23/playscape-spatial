@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Scene } from './components/canvas/Scene';
+import { FileActions } from './components/ui/FileActions';
 import { useSceneStore } from './store/useSceneStore';
 import {
   formatCoordinate,
@@ -108,30 +109,34 @@ function App() {
             </p>
           </div>
 
-          {/* Metric | Imperial display toggle */}
-          <div className="flex items-center gap-1 border border-slate-700/70 bg-slate-800/80 p-0.5 backdrop-blur-sm">
-            <button
-              type="button"
-              onClick={() => setUnitSystem('metric')}
-              className={`px-2.5 py-1 text-xs ${
-                unitSystem === 'metric'
-                  ? 'bg-sky-900/80 text-sky-100'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Metric
-            </button>
-            <button
-              type="button"
-              onClick={() => setUnitSystem('imperial')}
-              className={`px-2.5 py-1 text-xs ${
-                unitSystem === 'imperial'
-                  ? 'bg-sky-900/80 text-sky-100'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Imperial
-            </button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <FileActions />
+
+            {/* Metric | Imperial display toggle */}
+            <div className="flex items-center gap-1 border border-slate-700/70 bg-slate-800/80 p-0.5 backdrop-blur-sm">
+              <button
+                type="button"
+                onClick={() => setUnitSystem('metric')}
+                className={`px-2.5 py-1 text-xs ${
+                  unitSystem === 'metric'
+                    ? 'bg-sky-900/80 text-sky-100'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Metric
+              </button>
+              <button
+                type="button"
+                onClick={() => setUnitSystem('imperial')}
+                className={`px-2.5 py-1 text-xs ${
+                  unitSystem === 'imperial'
+                    ? 'bg-sky-900/80 text-sky-100'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Imperial
+              </button>
+            </div>
           </div>
         </header>
 
