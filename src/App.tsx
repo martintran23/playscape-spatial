@@ -1,5 +1,12 @@
+import { useEffect } from 'react';
 import { Scene } from './components/canvas/Scene';
 import { useSceneStore } from './store/useSceneStore';
+import {
+  formatCoordinate,
+  formatDistance,
+  oppositeUnit,
+} from './utils/units';
+import type { UnitSystem } from './types/scene';
 
 function abbreviateId(id: string): string {
   return id.length <= 12 ? id : `${id.slice(0, 8)}…`;
@@ -13,26 +20,73 @@ function degreesToRadians(degrees: number): number {
   return (degrees * Math.PI) / 180;
 }
 
+/** Primary + faint secondary unit pair for dual readouts. */
+function DualDistance({
+  meters,
+  unit,
+}: {
+  meters: number;
+  unit: UnitSystem;
+}) {
+  const primary = formatDistance(meters, unit);
+  const secondary = formatDistance(meters, oppositeUnit(unit));
+  return (
+    <span className="font-mono text-slate-100">
+      {primary}{' '}
+      <span className="text-slate-500">({secondary})</span>
+    </span>
+  );
+}
+
 /**
  * Application shell: full-screen 3D viewport + catalog / properties HUD.
- * Properties panel stays in sync with 3D selection and transform state.
+ * Display units are formatted at the HUD boundary; the store stays metric.
  */
 function App() {
   const catalog = useSceneStore((state) => state.catalog);
   const items = useSceneStore((state) => state.items);
   const selectedId = useSceneStore((state) => state.selectedId);
   const transformMode = useSceneStore((state) => state.transformMode);
+  const unitSystem = useSceneStore((state) => state.unitSystem);
   const addItem = useSceneStore((state) => state.addItem);
   const clearScene = useSceneStore((state) => state.clearScene);
   const selectItem = useSceneStore((state) => state.selectItem);
   const setTransformMode = useSceneStore((state) => state.setTransformMode);
-  const updateItemTransform = useSceneStore((state) => state.updateItemTransform);
+  const setUnitSystem = useSceneStore((state) => state.setUnitSystem);
+  const deleteSelectedItem = useSceneStore((state) => state.deleteSelectedItem);
+  const updateItemTransform = useSceneStore(
+    (state) => state.updateItemTransform,
+  );
 
   const selectedItem =
     items.find((item) => item.instanceId === selectedId) ?? null;
   const selectedAsset = selectedItem
     ? (catalog.find((asset) => asset.id === selectedItem.assetId) ?? null)
     : null;
+
+  // Keyboard delete / backspace — ignore while typing in form fields.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Delete' && event.key !== 'Backspace') return;
+
+      const target = event.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (
+        tag === 'input' ||
+        tag === 'textarea' ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      if (useSceneStore.getState().selectedId === null) return;
+      event.preventDefault();
+      deleteSelectedItem();
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [deleteSelectedItem]);
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-slate-900">
@@ -43,11 +97,42 @@ function App() {
 
       {/* HTML HUD — pointer-events-none so orbit controls work through empty space */}
       <div className="pointer-events-none absolute inset-0 z-10 flex flex-col">
-        <header className="px-4 py-3">
-          <h1 className="text-sm font-semibold tracking-wide text-slate-100">
-            Playscape Spatial v0.1
-          </h1>
-          <p className="text-xs text-slate-400">Metric Grid: 1 cell = 1.0m</p>
+        <header className="pointer-events-auto flex items-start justify-between gap-4 px-4 py-3">
+          <div>
+            <h1 className="text-sm font-semibold tracking-wide text-slate-100">
+              Playscape Spatial v0.1
+            </h1>
+            <p className="text-xs text-slate-400">
+              Scene units: metric store · display{' '}
+              {unitSystem === 'imperial' ? 'ft / in' : 'meters'}
+            </p>
+          </div>
+
+          {/* Metric | Imperial display toggle */}
+          <div className="flex items-center gap-1 border border-slate-700/70 bg-slate-800/80 p-0.5 backdrop-blur-sm">
+            <button
+              type="button"
+              onClick={() => setUnitSystem('metric')}
+              className={`px-2.5 py-1 text-xs ${
+                unitSystem === 'metric'
+                  ? 'bg-sky-900/80 text-sky-100'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Metric
+            </button>
+            <button
+              type="button"
+              onClick={() => setUnitSystem('imperial')}
+              className={`px-2.5 py-1 text-xs ${
+                unitSystem === 'imperial'
+                  ? 'bg-sky-900/80 text-sky-100'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Imperial
+            </button>
+          </div>
         </header>
 
         <div className="flex min-h-0 flex-1 justify-between px-3 pb-3">
@@ -69,9 +154,11 @@ function App() {
                     {asset.category.replace('_', ' ')}
                   </p>
                   <p className="mt-1 font-mono text-[10px] text-slate-400">
-                    {asset.defaultDimensions.width.toFixed(2)} ×{' '}
-                    {asset.defaultDimensions.height.toFixed(2)} ×{' '}
-                    {asset.defaultDimensions.depth.toFixed(2)} m
+                    {formatDistance(asset.defaultDimensions.width, unitSystem)}{' '}
+                    ×{' '}
+                    {formatDistance(asset.defaultDimensions.height, unitSystem)}{' '}
+                    ×{' '}
+                    {formatDistance(asset.defaultDimensions.depth, unitSystem)}
                   </p>
                   <button
                     type="button"
@@ -122,11 +209,39 @@ function App() {
                     <dd className="text-slate-100">{selectedItem.name}</dd>
                   </div>
                   <div>
-                    <dt className="text-slate-500">Dimensions (W × H × D)</dt>
+                    <dt className="text-slate-500">Width</dt>
+                    <dd>
+                      <DualDistance
+                        meters={selectedAsset.defaultDimensions.width}
+                        unit={unitSystem}
+                      />
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Height</dt>
+                    <dd>
+                      <DualDistance
+                        meters={selectedAsset.defaultDimensions.height}
+                        unit={unitSystem}
+                      />
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Depth</dt>
+                    <dd>
+                      <DualDistance
+                        meters={selectedAsset.defaultDimensions.depth}
+                        unit={unitSystem}
+                      />
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Position</dt>
                     <dd className="font-mono text-slate-100">
-                      {selectedAsset.defaultDimensions.width.toFixed(2)} ×{' '}
-                      {selectedAsset.defaultDimensions.height.toFixed(2)} ×{' '}
-                      {selectedAsset.defaultDimensions.depth.toFixed(2)} m
+                      X {formatCoordinate(selectedItem.position.x, unitSystem)}
+                      , Y{' '}
+                      {formatCoordinate(selectedItem.position.y, unitSystem)}, Z{' '}
+                      {formatCoordinate(selectedItem.position.z, unitSystem)}
                     </dd>
                   </div>
                 </dl>
@@ -162,13 +277,18 @@ function App() {
                   </div>
                 </div>
 
-                {/* Precise numeric editors */}
+                {/* Precise numeric editors — always edit store meters */}
                 <div className="mt-3 space-y-2">
                   <p className="text-[10px] uppercase tracking-wider text-slate-500">
-                    Pose
+                    Pose (store meters)
                   </p>
                   <label className="flex items-center justify-between gap-2">
-                    <span className="text-slate-400">Pos X (m)</span>
+                    <span className="text-slate-400">
+                      Pos X{' '}
+                      <span className="text-slate-500">
+                        ({formatCoordinate(selectedItem.position.x, unitSystem)})
+                      </span>
+                    </span>
                     <input
                       type="number"
                       step="0.1"
@@ -182,7 +302,7 @@ function App() {
                     />
                   </label>
                   <label className="flex items-center justify-between gap-2">
-                    <span className="text-slate-400">Pos Y (m)</span>
+                    <span className="text-slate-400">Pos Y</span>
                     <input
                       type="number"
                       value={0}
@@ -191,7 +311,12 @@ function App() {
                     />
                   </label>
                   <label className="flex items-center justify-between gap-2">
-                    <span className="text-slate-400">Pos Z (m)</span>
+                    <span className="text-slate-400">
+                      Pos Z{' '}
+                      <span className="text-slate-500">
+                        ({formatCoordinate(selectedItem.position.z, unitSystem)})
+                      </span>
+                    </span>
                     <input
                       type="number"
                       step="0.1"
@@ -228,8 +353,16 @@ function App() {
 
                 <button
                   type="button"
+                  onClick={deleteSelectedItem}
+                  className="mt-3 w-full border border-red-700/80 bg-red-950/70 px-2 py-1.5 text-xs text-red-100 hover:bg-red-900/80"
+                >
+                  Delete Selected
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => selectItem(null)}
-                  className="mt-3 w-full border border-slate-600 bg-slate-700/80 px-2 py-1.5 text-xs text-slate-100 hover:bg-slate-600"
+                  className="mt-2 w-full border border-slate-600 bg-slate-700/80 px-2 py-1.5 text-xs text-slate-100 hover:bg-slate-600"
                 >
                   Deselect
                 </button>
@@ -262,9 +395,10 @@ function App() {
                           {abbreviateId(item.instanceId)}
                         </p>
                         <p className="mt-1 font-mono text-slate-400">
-                          pos ({item.position.x.toFixed(2)},{' '}
-                          {item.position.y.toFixed(2)},{' '}
-                          {item.position.z.toFixed(2)})
+                          pos (
+                          {formatCoordinate(item.position.x, unitSystem)},{' '}
+                          {formatCoordinate(item.position.y, unitSystem)},{' '}
+                          {formatCoordinate(item.position.z, unitSystem)})
                         </p>
                       </button>
                     </li>

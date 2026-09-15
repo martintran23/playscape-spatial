@@ -1,5 +1,10 @@
 import { create } from 'zustand';
-import type { CatalogAsset, SceneItem, Vector3Tuple } from '../types/scene';
+import type {
+  CatalogAsset,
+  SceneItem,
+  UnitSystem,
+  Vector3Tuple,
+} from '../types/scene';
 
 /** Verified AABB from Milestone 2 for the Superior rectangle shade. */
 const SHADE_RECTANGLE: CatalogAsset = {
@@ -21,6 +26,8 @@ interface SceneStore {
   items: SceneItem[];
   selectedId: string | null;
   transformMode: TransformMode;
+  /** Display preference only — store coordinates stay metric meters. */
+  unitSystem: UnitSystem;
   /** True while TransformControls is actively dragging (pauses store→object pose sync). */
   isDragging: boolean;
   addItem: (assetId: string) => void;
@@ -29,6 +36,9 @@ interface SceneStore {
   selectItem: (instanceId: string | null) => void;
   setTransformMode: (mode: TransformMode) => void;
   setDragging: (dragging: boolean) => void;
+  setUnitSystem: (unit: UnitSystem) => void;
+  toggleUnitSystem: () => void;
+  deleteSelectedItem: () => void;
   updateItemTransform: (
     instanceId: string,
     position: Partial<Vector3Tuple>,
@@ -38,12 +48,15 @@ interface SceneStore {
 
 /**
  * Central scene graph state: catalog, instances, selection, and transform tooling.
+ * All spatial values remain metric (1 unit = 1 meter).
  */
 export const useSceneStore = create<SceneStore>((set, get) => ({
   catalog: [SHADE_RECTANGLE],
   items: [],
   selectedId: null,
   transformMode: 'translate',
+  // Default imperial for US commercial playground sales workflows.
+  unitSystem: 'imperial',
   isDragging: false,
 
   addItem: (assetId) => {
@@ -90,6 +103,22 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
 
   setDragging: (dragging) => {
     set({ isDragging: dragging });
+  },
+
+  setUnitSystem: (unit) => {
+    set({ unitSystem: unit });
+  },
+
+  toggleUnitSystem: () => {
+    set({
+      unitSystem: get().unitSystem === 'imperial' ? 'metric' : 'imperial',
+    });
+  },
+
+  deleteSelectedItem: () => {
+    const { selectedId, removeItem } = get();
+    if (selectedId === null) return;
+    removeItem(selectedId);
   },
 
   updateItemTransform: (instanceId, position, rotation) => {
